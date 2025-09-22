@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Processador de Notas Fiscais</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 20px; }
+        form { margin-top: 20px; border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
+        input[type="file"] { display: block; margin-bottom: 10px; }
+        input[type="submit"] { background-color: #007bff; color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 5px;}
+    </style>
+</head>
+<body>
+    <h1>Upload de Nota Fiscal (Contas a Pagar)</h1>
+    <p>Envie o arquivo PDF da nota fiscal para extrair os dados.</p>
+
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <label for="pdf_file">Selecione o arquivo PDF:</label>
+        <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
+        <input type="submit" value="Processar PDF">
+    </form>
+</body>
+</html>
