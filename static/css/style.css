@@ -1,5 +1,5 @@
 /* Importando uma fonte moderna do Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)');
 
 /* Variáveis de cores para facilitar a customização */
 :root {
@@ -9,9 +9,6 @@
     --text-color: #E0E0E0;
     --text-muted: #8A8A8A;
     --border-color: #333333;
-    --json-key: #9CDCFE;
-    --json-string: #CE9178;
-    --json-number: #B5CEA8;
 }
 
 * {
@@ -58,7 +55,7 @@ header p {
 
 /* Estilo do Formulário de Upload */
 .upload-form input[type="file"] {
-    display: none; /* Escondemos o input padrão */
+    display: none;
 }
 
 .file-upload-label {
@@ -91,7 +88,7 @@ header p {
     text-align: center;
     margin-top: 15px;
     color: var(--text-muted);
-    min-height: 20px; /* Evita que o layout pule */
+    min-height: 20px;
 }
 
 .btn-submit {
@@ -215,4 +212,51 @@ pre {
 
 .formatted-data p {
     margin-bottom: 5px;
+}
+
+/* Estilos para a Tabela de Produtos */
+.product-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.product-table th, .product-table td {
+    padding: 12px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.product-table th {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+}
+
+.product-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.product-table th:nth-child(2), .product-table td:nth-child(2),
+.product-table th:nth-child(3), .product-table td:nth-child(3) {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* Estilos para as Tags de Classificação */
+.category-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.category-tag {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
 }

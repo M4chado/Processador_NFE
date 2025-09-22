@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Extração de Dados de Nota Fiscal</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css)">
 </head>
 <body>
 
@@ -34,23 +34,11 @@
         <div class="card result-card">
             <h2>Dados Extraídos</h2>
             <div class="tabs">
-                <button class="tab-btn active" data-tab="json">JSON</button>
-                <button class="tab-btn" data-tab="formatado">Visualização Formatada</button>
+                <button class="tab-btn active" data-tab="formatado">Visualização Formatada</button>
+                <button class="tab-btn" data-tab="json">JSON</button>
             </div>
 
-            <div id="json" class="tab-content active">
-                <div class="json-header">
-                    <h3>Dados em JSON</h3>
-                    <button id="copy-btn" class="copy-btn">
-                        <i class="fa-solid fa-copy"></i>
-                        Copiar JSON
-                    </button>
-                </div>
-                <pre><code id="json-code">{{ resultado_json }}</code></pre>
-                <p class="json-footer">Este JSON contém todos os dados extraídos da nota fiscal e pode ser usado para integração com outros sistemas.</p>
-            </div>
-            
-            <div id="formatado" class="tab-content">
+            <div id="formatado" class="tab-content active">
                 <h3>Visualização dos Dados</h3>
                 <div class="formatted-data">
                     {% if dados_formatados %}
@@ -69,32 +57,85 @@
                             <h4>Dados da Nota</h4>
                             <p><strong>Número da NF:</strong> {{ dados_formatados.numero_nota_fiscal or 'N/A' }}</p>
                             <p><strong>Data de Emissão:</strong> {{ dados_formatados.data_emissao or 'N/A' }}</p>
-                            <p><strong>Valor Total:</strong> R$ {{ "%.2f"|format(dados_formatados.valor_total|float) or 'N/A' }}</p>
+                            <p><strong>Valor Total:</strong> R$ {{ "%.2f"|format(dados_formatados.valor_total|float) if dados_formatados.valor_total is not none else 'N/A' }}</p>
                         </div>
+                        
+                        <div class="data-group">
+                            <h4>Classificação da Despesa</h4>
+                            <div class="category-container">
+                                {% if dados_formatados.classificacao_despesa and dados_formatados.classificacao_despesa|length > 0 %}
+                                    {% for categoria in dados_formatados.classificacao_despesa %}
+                                        <span class="category-tag">{{ categoria }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <p>Nenhuma categoria de despesa identificada.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="data-group">
+                            <h4>Produtos / Serviços</h4>
+                            {% if dados_formatados.produtos and dados_formatados.produtos|length > 0 %}
+                            <table class="product-table">
+                                <thead>
+                                    <tr>
+                                        <th>Descrição</th>
+                                        <th>Qtd.</th>
+                                        <th>Valor Unit.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for produto in dados_formatados.produtos %}
+                                    <tr>
+                                        <td>{{ produto.descricao or 'N/A' }}</td>
+                                        <td>{{ produto.quantidade or 'N/A' }}</td>
+                                        <td>R$ {{ "%.2f"|format(produto.valor_unitario|float) if produto.valor_unitario is not none else 'N/A' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <p>Nenhum produto encontrado.</p>
+                            {% endif %}
+                        </div>
+
                     {% else %}
                         <p>Não foi possível formatar a visualização dos dados.</p>
                     {% endif %}
                 </div>
             </div>
+
+            <div id="json" class="tab-content">
+                <div class="json-header">
+                    <h3>Dados em JSON</h3>
+                    <button id="copy-btn" class="copy-btn">
+                        <i class="fa-solid fa-copy"></i>
+                        Copiar JSON
+                    </button>
+                </div>
+                <pre><code id="json-code">{{ resultado_json }}</code></pre>
+                <p class="json-footer">Este JSON contém todos os dados extraídos da nota fiscal e pode ser usado para integração com outros sistemas.</p>
+            </div>
+            
         </div>
         {% endif %}
 
     </div>
 
     <script>
-        // Exibe o nome do arquivo selecionado
-        const pdfFileInput = document.getElementById('pdf_file');
-        const fileNameDisplay = document.getElementById('file-name-display');
-        pdfFileInput.addEventListener('change', () => {
-            if (pdfFileInput.files.length > 0) {
-                fileNameDisplay.textContent = `Arquivo selecionado: ${pdfFileInput.files[0].name}`;
-            } else {
-                fileNameDisplay.textContent = '';
-            }
-        });
-
-        // Lógica para copiar o JSON e para as abas
         document.addEventListener('DOMContentLoaded', () => {
+            const pdfFileInput = document.getElementById('pdf_file');
+            const fileNameDisplay = document.getElementById('file-name-display');
+            if(pdfFileInput) {
+                pdfFileInput.addEventListener('change', () => {
+                    if (pdfFileInput.files.length > 0) {
+                        fileNameDisplay.textContent = `Arquivo selecionado: ${pdfFileInput.files[0].name}`;
+                    } else {
+                        fileNameDisplay.textContent = '';
+                    }
+                });
+            }
+
             const copyBtn = document.getElementById('copy-btn');
             if (copyBtn) {
                 copyBtn.addEventListener('click', () => {
@@ -116,14 +157,19 @@
                     btn.classList.add('active');
                     const tabId = btn.getAttribute('data-tab');
                     tabContents.forEach(content => {
-                        if (content.id === tabId) {
-                            content.classList.add('active');
-                        } else {
-                            content.classList.remove('active');
-                        }
+                        content.classList.toggle('active', content.id === tabId);
                     });
                 });
             });
+            
+            // Garante que a aba correta esteja ativa ao carregar a página com resultados
+            const initialActiveTab = document.querySelector('.tabs .tab-btn.active');
+            if (initialActiveTab) {
+                const initialTabId = initialActiveTab.getAttribute('data-tab');
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.toggle('active', content.id === initialTabId);
+                });
+            }
         });
     </script>
 
