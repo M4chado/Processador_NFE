@@ -2,22 +2,130 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Processador de Notas Fiscais</title>
-    <style>
-        body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 20px; }
-        form { margin-top: 20px; border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
-        input[type="file"] { display: block; margin-bottom: 10px; }
-        input[type="submit"] { background-color: #007bff; color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 5px;}
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extração de Dados de Nota Fiscal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 <body>
-    <h1>Upload de Nota Fiscal (Contas a Pagar)</h1>
-    <p>Envie o arquivo PDF da nota fiscal para extrair os dados.</p>
 
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <label for="pdf_file">Selecione o arquivo PDF:</label>
-        <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
-        <input type="submit" value="Processar PDF">
-    </form>
+    <div class="container">
+        <header>
+            <h1>Extração de Dados de Nota Fiscal</h1>
+            <p>Carregue um PDF de nota fiscal e extraia os dados automaticamente usando IA</p>
+        </header>
+
+        <div class="card">
+            <form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
+                <label for="pdf_file" class="file-upload-label">
+                    <i class="fa-solid fa-upload"></i>
+                    <span>Selecione o arquivo PDF da nota fiscal</span>
+                </label>
+                <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
+                <div id="file-name-display" class="file-name-display"></div>
+                <button type="submit" class="btn-submit">
+                    <i class="fa-solid fa-bolt"></i>
+                    Extrair Dados
+                </button>
+            </form>
+        </div>
+
+        {% if resultado_json %}
+        <div class="card result-card">
+            <h2>Dados Extraídos</h2>
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="json">JSON</button>
+                <button class="tab-btn" data-tab="formatado">Visualização Formatada</button>
+            </div>
+
+            <div id="json" class="tab-content active">
+                <div class="json-header">
+                    <h3>Dados em JSON</h3>
+                    <button id="copy-btn" class="copy-btn">
+                        <i class="fa-solid fa-copy"></i>
+                        Copiar JSON
+                    </button>
+                </div>
+                <pre><code id="json-code">{{ resultado_json }}</code></pre>
+                <p class="json-footer">Este JSON contém todos os dados extraídos da nota fiscal e pode ser usado para integração com outros sistemas.</p>
+            </div>
+            
+            <div id="formatado" class="tab-content">
+                <h3>Visualização dos Dados</h3>
+                <div class="formatted-data">
+                    {% if dados_formatados %}
+                        <div class="data-group">
+                            <h4>Fornecedor</h4>
+                            <p><strong>Razão Social:</strong> {{ dados_formatados.fornecedor.razao_social or 'N/A' }}</p>
+                            <p><strong>Nome Fantasia:</strong> {{ dados_formatados.fornecedor.nome_fantasia or 'N/A' }}</p>
+                            <p><strong>CNPJ:</strong> {{ dados_formatados.fornecedor.cnpj or 'N/A' }}</p>
+                        </div>
+                        <div class="data-group">
+                            <h4>Faturado</h4>
+                            <p><strong>Nome:</strong> {{ dados_formatados.faturado.nome_completo or 'N/A' }}</p>
+                            <p><strong>CPF/CNPJ:</strong> {{ dados_formatados.faturado.cpf_cnpj or 'N/A' }}</p>
+                        </div>
+                        <div class="data-group">
+                            <h4>Dados da Nota</h4>
+                            <p><strong>Número da NF:</strong> {{ dados_formatados.numero_nota_fiscal or 'N/A' }}</p>
+                            <p><strong>Data de Emissão:</strong> {{ dados_formatados.data_emissao or 'N/A' }}</p>
+                            <p><strong>Valor Total:</strong> R$ {{ "%.2f"|format(dados_formatados.valor_total|float) or 'N/A' }}</p>
+                        </div>
+                    {% else %}
+                        <p>Não foi possível formatar a visualização dos dados.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <script>
+        // Exibe o nome do arquivo selecionado
+        const pdfFileInput = document.getElementById('pdf_file');
+        const fileNameDisplay = document.getElementById('file-name-display');
+        pdfFileInput.addEventListener('change', () => {
+            if (pdfFileInput.files.length > 0) {
+                fileNameDisplay.textContent = `Arquivo selecionado: ${pdfFileInput.files[0].name}`;
+            } else {
+                fileNameDisplay.textContent = '';
+            }
+        });
+
+        // Lógica para copiar o JSON e para as abas
+        document.addEventListener('DOMContentLoaded', () => {
+            const copyBtn = document.getElementById('copy-btn');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', () => {
+                    const jsonCode = document.getElementById('json-code').innerText;
+                    navigator.clipboard.writeText(jsonCode).then(() => {
+                        copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> Copiado!';
+                        setTimeout(() => {
+                            copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copiar JSON';
+                        }, 2000);
+                    });
+                });
+            }
+
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const tabId = btn.getAttribute('data-tab');
+                    tabContents.forEach(content => {
+                        if (content.id === tabId) {
+                            content.classList.add('active');
+                        } else {
+                            content.classList.remove('active');
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+
 </body>
 </html>
