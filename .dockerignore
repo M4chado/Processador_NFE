@@ -1,13 +1,13 @@
-# 1. O ambiente virtual (o mais pesado e inútil)
+# Ignorar o ambiente virtual
 venv/
 
-# 2. Caches do Python
+# Ignorar caches do Python
 __pycache__/
 *.pyc
 
-# 3. O mais importante por SEGURANÇA
+# Ignorar o arquivo .env com a nossa chave secreta
 .env
 
-# 4. Configurações locais que não interessam para a aplicação
+# Ignorar arquivos do Git e VSCode
 .git/
 .vscode/
