@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Extração de Dados de Nota Fiscal</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css)">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 <body>
 
@@ -99,6 +99,32 @@
                             {% endif %}
                         </div>
 
+                        <div class="data-group">
+                            <h4>Parcelas / Vencimentos</h4>
+                            {% if dados_formatados.parcelas and dados_formatados.parcelas|length > 0 %}
+                            <table class="product-table">
+                                <thead>
+                                    <tr>
+                                        <th>Parcela</th>
+                                        <th>Data de Vencimento</th>
+                                        <th>Valor da Parcela</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for parcela in dados_formatados.parcelas %}
+                                    <tr>
+                                        <td>{{ parcela.numero_parcela or 'N/A' }}</td>
+                                        <td>{{ parcela.data_vencimento or 'N/A' }}</td>
+                                        <td>R$ {{ "%.2f"|format(parcela.valor_parcela|float) if parcela.valor_parcela is not none else 'N/A' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <p>Nenhuma informação de parcela encontrada.</p>
+                            {% endif %}
+                        </div>
+
                     {% else %}
                         <p>Não foi possível formatar a visualização dos dados.</p>
                     {% endif %}
@@ -162,7 +188,6 @@
                 });
             });
             
-            // Garante que a aba correta esteja ativa ao carregar a página com resultados
             const initialActiveTab = document.querySelector('.tabs .tab-btn.active');
             if (initialActiveTab) {
                 const initialTabId = initialActiveTab.getAttribute('data-tab');

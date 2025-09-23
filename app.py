@@ -4,8 +4,10 @@ import json
 from flask import Flask, render_template, request
 import google.generativeai as genai
 from dotenv import load_dotenv
+from datetime import datetime
+from dateutil.relativedelta import relativedelta # Para manipulação de datas
 
-# Carrega as variáveis de ambiente do arquivo .env
+# Carrega as variáveis de ambiente do arquivo .env (sua chave de API)
 load_dotenv()
 
 # Inicializa a aplicação Flask
@@ -80,6 +82,28 @@ def classificar_nota_fiscal(dados_da_nota):
     return list(categorias_encontradas)
 # --- FIM: MOTOR DE REGRAS DE CLASSIFICAÇÃO ---
 
+def gerar_parcela_padrao(dados_json):
+    """Verifica se há parcelas; se não houver, cria uma parcela única com vencimento em 1 mês."""
+    if not dados_json.get('parcelas'):
+        data_emissao_str = dados_json.get('data_emissao')
+        valor_total = dados_json.get('valor_total')
+
+        if data_emissao_str and valor_total is not None:
+            try:
+                data_emissao = datetime.strptime(data_emissao_str, "%d/%m/%Y")
+                data_vencimento = data_emissao + relativedelta(months=1)
+                data_vencimento_str = data_vencimento.strftime("%d/%m/%Y")
+
+                dados_json['parcelas'] = [{
+                    "numero_parcela": 1,
+                    "data_vencimento": data_vencimento_str,
+                    "valor_parcela": float(valor_total)
+                }]
+                print("INFO: Nenhuma parcela encontrada na extração. Gerando parcela padrão.")
+            except (ValueError, TypeError) as e:
+                print(f"AVISO: Não foi possível gerar parcela padrão. Dados de origem inválidos. Erro: {e}")
+    
+    return dados_json
 
 # Configura a API do Google Gemini
 try:
@@ -92,6 +116,7 @@ except Exception as e:
     exit()
 
 def extrair_texto_de_pdf(pdf_file_stream):
+    """Extrai o texto de um stream de arquivo PDF."""
     try:
         documento = fitz.open(stream=pdf_file_stream.read(), filetype="pdf")
         texto_completo = ""
@@ -103,6 +128,7 @@ def extrair_texto_de_pdf(pdf_file_stream):
         return None
 
 def extrair_dados_com_llm(texto_da_nota):
+    """Envia o texto para o Gemini e pede para extrair os dados na estrutura JSON definida."""
     generation_config = {"temperature": 0.1}
     model = genai.GenerativeModel(model_name="gemini-1.5-flash", generation_config=generation_config)
     prompt = f"""
@@ -117,7 +143,7 @@ def extrair_dados_com_llm(texto_da_nota):
       "produtos": [{{"descricao": "string", "quantidade": "integer", "valor_unitario": "float"}}],
       "parcelas": [{{"numero_parcela": "integer", "data_vencimento": "string", "valor_parcela": "float"}}]
     }}
-    Se uma informação não for encontrada no texto, retorne null para o campo correspondente.
+    Se uma informação não for encontrada no texto, retorne null para o campo correspondente. Se a nota não detalhar as parcelas, retorne uma lista vazia para o campo "parcelas".
     Texto da Nota Fiscal para análise:
     ---
     {texto_da_nota}
@@ -132,10 +158,12 @@ def extrair_dados_com_llm(texto_da_nota):
 
 @app.route('/')
 def index():
+    """Renderiza a página inicial."""
     return render_template('index.html', resultado_json=None, dados_formatados=None)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    """Recebe o PDF, processa e retorna a página com os resultados."""
     if 'pdf_file' not in request.files:
         return render_template('index.html', resultado_json=None, dados_formatados=None)
     
@@ -144,14 +172,17 @@ def upload_file():
     if file.filename == '' or not file.filename.lower().endswith('.pdf'):
         return render_template('index.html', resultado_json=None, dados_formatados=None)
 
+    # 1. Extração do texto
     texto_pdf = extrair_texto_de_pdf(file)
     if not texto_pdf:
         return "Erro: Não foi possível ler o texto do PDF.", 400
         
+    # 2. Extração dos dados com LLM
     json_extraido_str = extrair_dados_com_llm(texto_pdf)
     if not json_extraido_str:
         return "Erro: Falha na comunicação com a API do Gemini.", 500
 
+    # 3. Limpeza e processamento do JSON
     clean_json_str = json_extraido_str.strip().replace("```json", "").replace("```", "").strip()
 
     dados_json = None
@@ -160,18 +191,22 @@ def upload_file():
     try:
         dados_json = json.loads(clean_json_str)
         
-        # 1. Classificar a despesa com base nos dados extraídos
+        # 4. Gerar parcela padrão, se necessário
+        dados_json = gerar_parcela_padrao(dados_json)
+
+        # 5. Classificar a despesa com base nos dados
         categorias_da_despesa = classificar_nota_fiscal(dados_json)
         
-        # 2. Adicionar a classificação ao nosso objeto de dados
+        # 6. Adicionar a classificação ao objeto de dados
         dados_json['classificacao_despesa'] = categorias_da_despesa
         
-        # 3. Gerar o JSON formatado para exibição, agora com o novo campo
+        # 7. Gerar o JSON formatado para exibição, agora com todas as alterações
         json_formatado_para_exibicao = json.dumps(dados_json, indent=4, ensure_ascii=False)
 
     except json.JSONDecodeError:
         pass
 
+    # 8. Renderiza a página com os dados finais
     return render_template('index.html', resultado_json=json_formatado_para_exibicao, dados_formatados=dados_json)
 
 if __name__ == '__main__':

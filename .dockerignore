@@ -1,0 +1,13 @@
+# 1. O ambiente virtual (o mais pesado e inútil)
+venv/
+
+# 2. Caches do Python
+__pycache__/
+*.pyc
+
+# 3. O mais importante por SEGURANÇA
+.env
+
+# 4. Configurações locais que não interessam para a aplicação
+.git/
+.vscode/
