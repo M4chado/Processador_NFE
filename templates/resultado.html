@@ -2,19 +2,243 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Resultado da Extração</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 20px; }
-        pre { background-color: #f4f4f4; border: 1px solid #ddd; padding: 15px; white-space: pre-wrap; word-wrap: break-word; }
-        a { display: inline-block; margin-top: 20px; }
+        /* Estilos para as tags "Existe / Não Existe" */
+        .status-tag {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status-existe {
+            background-color: #e0f8e0;
+            color: #28a745;
+            border: 1px solid #a0d8a0;
+        }
+        .status-nao-existe {
+            background-color: #fff0e0;
+            color: #fd7e14;
+            border: 1px solid #fdbf80;
+        }
+        /* Estilos para o formulário e botão de salvar */
+        .save-form {
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+            text-align: right;
+        }
+        .btn-save {
+            background-color: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        .btn-save:hover {
+            background-color: #218838;
+        }
     </style>
 </head>
 <body>
-    <h1>Dados Extraídos da Nota Fiscal</h1>
 
-    <h2>JSON Resultante:</h2>
-    <pre><code>{{ resultado_json }}</code></pre>
+<div class="container">
+    <header>
+        <h1>Resultado da Extração</h1>
+        <p>Revise os dados extraídos e a análise do banco de dados antes de salvar.</p>
+    </header>
 
-    <a href="/">Processar outro arquivo</a>
+    {% if dados_formatados %}
+    <div class="card result-card">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="formatado">Visualização Formatada</button>
+            <button class="tab-btn" data-tab="json">JSON</button>
+        </div>
+
+        <div id="formatado" class="tab-content active">
+            <h3>Visualização dos Dados</h3>
+            <div class="formatted-data">
+                
+                <div class="data-group">
+                    <h4>
+                        Fornecedor
+                        {% if analise_db.fornecedor.status.startswith('EXISTE') %}
+                            <span class="status-tag status-existe">{{ analise_db.fornecedor.status }}</span>
+                        {% else %}
+                            <span class="status-tag status-nao-existe">{{ analise_db.fornecedor.status }}</span>
+                        {% endif %}
+                    </h4>
+                    <p><strong>Razão Social:</strong> {{ dados_formatados.fornecedor.razao_social or 'N/A' }}</p>
+                    <p><strong>CNPJ:</strong> {{ dados_formatados.fornecedor.cnpj or 'N/A' }}</p>
+                </div>
+                
+                <div class="data-group">
+                    <h4>
+                        Faturado
+                        {% if analise_db.faturado.status.startswith('EXISTE') %}
+                            <span class="status-tag status-existe">{{ analise_db.faturado.status }}</span>
+                        {% else %}
+                            <span class="status-tag status-nao-existe">{{ analise_db.faturado.status }}</span>
+                        {% endif %}
+                    </h4>
+                    <p><strong>Nome:</strong> {{ dados_formatados.faturado.nome_completo or 'N/A' }}</p>
+                    <p><strong>CPF/CNPJ:</strong> {{ dados_formatados.faturado.cpf_cnpj or 'N/A' }}</p>
+                </div>
+                
+                <div class="data-group">
+                    <h4>
+                        Classificação da Despesa
+                        {% if analise_db.classificacao.status.startswith('EXISTE') %}
+                            <span class="status-tag status-existe">{{ analise_db.classificacao.status }}</span>
+                        {% else %}
+                            <span class="status-tag status-nao-existe">{{ analise_db.classificacao.status }}</span>
+                        {% endif %}
+                    </h4>
+                    <div class="category-container">
+                        {% if dados_formatados.classificacao_despesa and dados_formatados.classificacao_despesa|length > 0 %}
+                            {% for categoria in dados_formatados.classificacao_despesa %}
+                                <span class="category-tag">{{ categoria }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <p>Nenhuma categoria de despesa identificada.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="data-group">
+                    <h4>Dados da Nota</h4>
+                    <p><strong>Número da NF:</strong> {{ dados_formatados.numero_nota_fiscal or 'N/A' }}</p>
+                    <p><strong>Data de Emissão:</strong> {{ dados_formatados.data_emissao or 'N/A' }}</p>
+                    <p><strong>Valor Total:</strong> R$ {{ "%.2f"|format(dados_formatados.valor_total|float) if dados_formatados.valor_total is not none else 'N/A' }}</p>
+                </div>
+
+                <div class="data-group">
+                    <h4>Produtos / Serviços</h4>
+                    {% if dados_formatados.produtos and dados_formatados.produtos|length > 0 %}
+                    <table class="product-table">
+                        <thead><tr><th>Descrição</th><th>Qtd.</th><th>Valor Unit.</th></tr></thead>
+                        <tbody>
+                        {% for produto in dados_formatados.produtos %}
+                        <tr>
+                            <td>{{ produto.descricao or 'N/A' }}</td>
+                            <td>{{ produto.quantidade or 'N/A' }}</td>
+                            <td>R$ {{ "%.2f"|format(produto.valor_unitario|float) if produto.valor_unitario is not none else 'N/A' }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p>Nenhum produto encontrado.</p>
+                    {% endif %}
+                </div>
+
+                <div class="data-group">
+                    <h4>Parcelas / Vencimentos</h4>
+                    {% if dados_formatados.parcelas and dados_formatados.parcelas|length > 0 %}
+                    <table class="product-table">
+                        <thead><tr><th>Parcela</th><th>Data de Vencimento</th><th>Valor da Parcela</th></tr></thead>
+                        <tbody>
+                        {% for parcela in dados_formatados.parcelas %}
+                        <tr>
+                            <td>{{ parcela.numero_parcela or 'N/A' }}</td>
+                            <td>{{ parcela.data_vencimento or 'N/A' }}</td>
+                            <td>R$ {{ "%.2f"|format(parcela.valor_parcela|float) if parcela.valor_parcela is not none else 'N/A' }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p>Nenhuma informação de parcela encontrada.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <form action="/salvar" method="post" class="save-form">
+                <input type="hidden" 
+                    name="dados_json_para_salvar" 
+                    value='{{ dados_formatados | tojson }}'> 
+                    
+                <button type="submit" class="btn-save">
+                    <i class="fa-solid fa-save"></i>
+                    Salvar no Banco de Dados
+                </button>
+            </form>
+
+        </div>
+
+        <div id="json" class="tab-content">
+            <div class="json-header">
+                <h3>Dados em JSON</h3>
+                <button id="copy-btn" class="copy-btn">
+                    <i class="fa-solid fa-copy"></i> Copiar JSON
+                </button>
+            </div>
+            <pre><code id="json-code">{{ resultado_json }}</code></pre>
+            <p class="json-footer">Este JSON contém todos os dados extraídos.</p>
+        </div>
+        
+    </div>
+    {% else %}
+    <div class="card result-card">
+        <h2>Erro na Extração</h2>
+        <p>Não foi possível decodificar os dados da IA. Resposta recebida:</p>
+        <pre><code>{{ resultado_json }}</code></pre>
+    </div>
+    {% endif %}
+
+    <a href="/" style="display: inline-block; margin-top: 20px;">
+        <i class="fa-solid fa-arrow-left"></i>
+        Processar outro arquivo
+    </a>
+
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const copyBtn = document.getElementById('copy-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                const jsonCode = document.getElementById('json-code').innerText;
+                navigator.clipboard.writeText(jsonCode).then(() => {
+                    copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> Copiado!';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copiar JSON';
+                    }, 2000);
+                });
+            });
+        }
+
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                tabBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const tabId = btn.getAttribute('data-tab');
+                tabContents.forEach(content => {
+                    content.classList.toggle('active', content.id === tabId);
+                });
+            });
+        });
+        
+        const initialActiveTab = document.querySelector('.tabs .tab-btn.active');
+        if (initialActiveTab) {
+            const initialTabId = initialActiveTab.getAttribute('data-tab');
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === initialTabId);
+            });
+        }
+    });
+</script>
+
 </body>
 </html>

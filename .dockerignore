@@ -1,13 +1,7 @@
-# Ignorar o ambiente virtual
 venv/
-
-# Ignorar caches do Python
 __pycache__/
 *.pyc
-
-# Ignorar o arquivo .env com a nossa chave secreta
+*.pyo
 .env
-
-# Ignorar arquivos do Git e VSCode
 .git/
 .vscode/
