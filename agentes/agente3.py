@@ -5,43 +5,55 @@ import re
 
 def get_database_schema():
     """
-    Define e retorna o esquema simplificado do banco de dados (o "R" do RAG).
-    Ajuste as tabelas e colunas conforme o seu banco Supabase.
+    [CORRIGIDO]
+    Define e retorna o esquema do banco, com base na imagem do ERD fornecida.
     """
     return """
     -- Tabela de Pessoas (Fornecedores e Faturados)
     CREATE TABLE pessoas (
       "idPessoas" INT PRIMARY KEY,
-      documento VARCHAR(20) UNIQUE, -- (CPF ou CNPJ)
-      "razao_social" VARCHAR(255),
-      "nome_completo" VARCHAR(255)
+      documento VARCHAR(20) UNIQUE,
+      razaosocial VARCHAR(255),
+      fantasia VARCHAR(255),
+      tipo VARCHAR(20),
+      status VARCHAR(20)
     );
 
     -- Tabela de Classificações de Despesa
     CREATE TABLE classificacao (
       "idClassificacao" INT PRIMARY KEY,
       descricao VARCHAR(100),
-      tipo VARCHAR(20) -- (ex: 'DESPESA')
+      tipo VARCHAR(20), -- (ex: 'DESPESA')
+      status VARCHAR(20)
     );
 
     -- Tabela Principal de Movimentos (Notas Fiscais)
-    CREATE TABLE movimentos (
-      idMovimento INT PRIMARY KEY,
-      "numero_nota_fiscal" VARCHAR(50),
-      data_emissao DATE,
-      valor_total FLOAT,
-      "idFornecedor" INT, -- FK para pessoas."idPessoas"
-      "idFaturado" INT, -- FK para pessoas."idPessoas"
-      "idClassificacao" INT -- FK para classificacao."idClassificacao"
+    CREATE TABLE movimentocontas (
+      "idMovimentoContas" INT PRIMARY KEY,
+      numeronotafiscal VARCHAR(50),
+      dataemissao DATE,
+      valortotal NUMERIC,
+      "Pessoas_idFornecedor" INT, -- FK para pessoas."idPessoas"
+      "Pessoas_idFaturado" INT, -- FK para pessoas."idPessoas"
+      tipo VARCHAR(20),
+      descricao TEXT,
+      status VARCHAR(20)
     );
 
     -- Tabela de Parcelas
-    CREATE TABLE parcelas (
-      idParcela INT PRIMARY KEY,
-      "idMovimento" INT, -- FK para movimentos.idMovimento
-      numero_parcela INT,
-      data_vencimento DATE,
-      valor_parcela FLOAT
+    CREATE TABLE parcelacontas (
+      "idParcelaContas" INT PRIMARY KEY,
+      datavencimento DATE,
+      valorpago NUMERIC,
+      valorsaldo NUMERIC,
+      statusparcela VARCHAR(20),
+      "MovimentoContas_idMovimentoContas" INT -- FK para movimentocontas."idMovimentoContas"
+    );
+
+    -- Tabela de Junção (Muitos-para-Muitos) entre Movimentos e Classificação
+    CREATE TABLE movimentocontas_has_classificacao (
+      "MovimentoContas_idMovimentoContas" INT, -- FK para movimentocontas
+      "Classificacao_idClassificacao" INT -- FK para classificacao
     );
     """
 
@@ -87,7 +99,15 @@ def run_text_to_sql(supabase_client: Client, user_question: str):
         2. Certifique-se de que a consulta seja compatível com PostgreSQL.
         3. Use os nomes de colunas e tabelas exatamente como estão no esquema (incluindo aspas, se houver).
         4. Sempre use a data de hoje (para perguntas como "este mês") como: CURRENT_DATE
-        5. Se a pergunta for sobre "MANUTENÇÃO E OPERAÇÃO", use a tabela 'classificacao' para encontrar o ID (ex: WHERE descricao = 'MANUTENÇÃO E OPERAÇÃO').
+
+        [REGRA IMPORTANTE DE JOIN]
+        5. Para filtrar movimentos por uma 'classificacao' (ex: 'MANUTENÇÃO E OPERAÇÃO'), 
+           você DEVE criar um JOIN triplo entre 'movimentocontas', 'movimentocontas_has_classificacao', e 'classificacao'.
+           Exemplo de JOIN:
+           ... FROM movimentocontas AS m
+           JOIN movimentocontas_has_classificacao AS mhc ON m."idMovimentoContas" = mhc."MovimentoContas_idMovimentoContas"
+           JOIN classificacao AS c ON mhc."Classificacao_idClassificacao" = c."idClassificacao"
+           WHERE c.descricao = 'MANUTENÇÃO E OPERAÇÃO' ...
 
         Consulta SQL:
         """
@@ -95,18 +115,36 @@ def run_text_to_sql(supabase_client: Client, user_question: str):
         # Usando o modelo que sabemos que funciona para sua API
         model = genai.GenerativeModel("gemini-2.5-flash") 
         response_sql = model.generate_content(prompt_sql_generator)
-        sql_query = response_sql.text.strip().replace("```sql", "").replace("```", "")
         
-        print(f"DEBUG (Agente 3): SQL Gerado: {sql_query}")
+        # --- Lógica robusta para limpar a resposta do LLM e extrair o SQL. ---
+        
+        raw_sql_response = response_sql.text.strip()
+        sql_query = ""
 
-        # --- ETAPA 2: Verificar e Executar a Consulta (CORRIGIDO) ---
+        # Tentativa 1: Encontrar SQL dentro de um bloco de markdown ```sql
+        sql_match = re.search(r"```sql\s*(.*?)\s*```", raw_sql_response, re.DOTALL | re.IGNORECASE)
+        
+        if sql_match:
+            sql_query = sql_match.group(1).strip()
+        else:
+            # Tentativa 2: Se não houver markdown, encontrar o primeiro "SELECT"
+            select_index = raw_sql_response.upper().find("SELECT")
+            if select_index != -1:
+                sql_query = raw_sql_response[select_index:].strip()
+            else:
+                sql_query = raw_sql_response
+
+        sql_query = sql_query.replace("```", "").strip().rstrip(';')
+        
+        print(f"DEBUG (Agente 3): SQL Limpo e Gerado: {sql_query}")
+
+        # --- ETAPA 2: Verificar e Executar a Consulta ---
         
         if not is_query_safe(sql_query):
             print(f"DEBUG (Agente 3): Consulta bloqueada por segurança: {sql_query}")
             return "Desculpe, sua pergunta resultou em uma consulta que não é permitida por motivos de segurança."
 
-        # CORREÇÃO: Em vez de .sql(), usamos .rpc() para chamar a função que criamos no Supabase
-        # O nome da função é 'run_safe_query' e o parâmetro é 'query_text'
+        # Chama a função RPC 'run_safe_query' que criamos no Supabase
         data_result = supabase_client.rpc(
             "run_safe_query", 
             {"query_text": sql_query}
@@ -139,7 +177,6 @@ def run_text_to_sql(supabase_client: Client, user_question: str):
 
     except Exception as e:
         print(f"Erro no Agente 3 (Text-to-SQL): {e}")
-        # Tenta extrair a mensagem de erro específica do Supabase, se houver
         if hasattr(e, 'message'):
             return f"Desculpe, ocorreu um erro ao processar sua pergunta: {e.message}"
         return f"Desculpe, ocorreu um erro ao processar sua pergunta: {e}"
