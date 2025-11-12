@@ -47,6 +47,68 @@
         .btn-save:hover {
             background-color: #218838;
         }
+
+        /* --- ESTILOS ADICIONADOS PARA O BOTÃO CHAT E LAYOUT --- */
+        .btn-secondary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            width: 100%;
+            
+            /* Estilo similar ao 'Extrair' */
+            font-size: 1.1rem; 
+            font-weight: 600; 
+            padding: 15px; 
+            
+            /* Cor e Ícone */
+            background-color: #333333; /* Cinza escuro */
+            color: #E0E0E0; /* Texto claro */
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .btn-secondary:hover {
+            background-color: #444444;
+            color: white;
+        }
+
+        .btn-secondary i {
+            margin-right: 10px;
+        }
+
+        /* Layout da navegação inferior */
+        .bottom-nav {
+            display: flex;
+            justify-content: space-between; /* Alinha um para cada lado */
+            align-items: center;
+            margin-top: 20px;
+            gap: 15px;
+        }
+
+        .btn-secondary.inline {
+            width: auto; /* Faz o botão não ocupar 100% */
+            font-size: 1rem; /* Um pouco menor para se ajustar */
+            font-weight: 500;
+            padding: 10px 15px;
+            margin-top: 0; /* Remove a margem superior */
+        }
+
+        .link-back {
+            color: #8A8A8A; /* Cor de texto silenciada */
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .link-back:hover {
+            color: #E0E0E0; /* Cor de texto clara */
+        }
+        /* --- FIM DOS ESTILOS ADICIONADOS --- */
+
     </style>
 </head>
 <body>
@@ -146,7 +208,7 @@
                     {% if dados_formatados.parcelas and dados_formatados.parcelas|length > 0 %}
                     <table class="product-table">
                         <thead><tr><th>Parcela</th><th>Data de Vencimento</th><th>Valor da Parcela</th></tr></thead>
-                        <tbody>
+<tbody>
                         {% for parcela in dados_formatados.parcelas %}
                         <tr>
                             <td>{{ parcela.numero_parcela or 'N/A' }}</td>
@@ -164,9 +226,9 @@
             
             <form action="/salvar" method="post" class="save-form">
                 <input type="hidden" 
-                    name="dados_json_para_salvar" 
-                    value='{{ dados_formatados | tojson }}'> 
-                    
+                       name="dados_json_para_salvar" 
+                       value='{{ dados_formatados | tojson }}'> 
+                       
                 <button type="submit" class="btn-save">
                     <i class="fa-solid fa-save"></i>
                     Salvar no Banco de Dados
@@ -195,10 +257,17 @@
     </div>
     {% endif %}
 
-    <a href="/" style="display: inline-block; margin-top: 20px;">
-        <i class="fa-solid fa-arrow-left"></i>
-        Processar outro arquivo
-    </a>
+    <div class="bottom-nav">
+        <a href="/" class="link-back">
+            <i class="fa-solid fa-arrow-left"></i>
+            Processar outro arquivo
+        </a>
+        
+        <a href="/chat" class="btn-secondary inline">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            Acessar o Chat
+        </a>
+    </div>
 
 </div>
 

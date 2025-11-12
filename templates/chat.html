@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat com Banco de Dados</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css)">
+    
+    <style>
+        /* Estilos específicos da página de Chat */
+        .container {
+            max-width: 900px;
+        }
+        .chat-container {
+            background-color: var(--card-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            height: 70vh;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 10px;
+        }
+        .message {
+            padding: 12px 18px;
+            border-radius: 20px;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+        .message.user {
+            background-color: var(--primary-color);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+        .message.bot {
+            background-color: var(--border-color);
+            color: var(--text-color);
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+        .message.loading {
+            align-self: flex-start;
+            font-style: italic;
+            color: var(--text-muted);
+        }
+        .chat-form {
+            display: flex;
+            margin-top: 20px;
+            gap: 10px;
+        }
+        .chat-input {
+            flex-grow: 1;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        .btn-send {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0 20px;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Chat com Banco de Dados</h1>
+            <p>Faça perguntas em linguagem natural sobre suas despesas.</p>
+            <p style="font-size: 0.9em;"><a href="/" style="color: var(--text-muted);">&larr; Voltar para o Upload</a></p>
+        </header>
+
+        <div class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <div class="message bot">
+                    Olá! Eu sou o Agente 3. Posso consultar o banco de dados para você.
+                    Tente perguntar algo como: <br>
+                    - Qual o valor total gasto em notas fiscais? <br>
+                    - Quais os 5 fornecedores com maiores gastos?
+                </div>
+            </div>
+            
+            <form class="chat-form" id="chat-form">
+                <input type="text" id="question-input" class="chat-input" placeholder="Digite sua pergunta aqui..." required>
+                <button type="submit" class="btn-send"><i class="fa-solid fa-paper-plane"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatForm = document.getElementById('chat-form');
+            const questionInput = document.getElementById('question-input');
+            const chatMessages = document.getElementById('chat-messages');
+
+            chatForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const question = questionInput.value.trim();
+                if (!question) return;
+
+                // 1. Mostrar a pergunta do usuário
+                addMessage(question, 'user');
+                questionInput.value = '';
+                
+                // 2. Mostrar "carregando"
+                const loadingMessage = addMessage('Digitando...', 'loading');
+
+                try {
+                    // 3. Enviar pergunta para o backend (API /ask)
+                    const response = await fetch('/ask', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ question: question }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Falha na resposta do servidor.');
+                    }
+
+                    const data = await response.json();
+                    
+                    // 4. Remover "carregando"
+                    loadingMessage.remove();
+
+                    // 5. Mostrar resposta do bot
+                    addMessage(data.answer, 'bot');
+
+                } catch (error) {
+                    loadingMessage.remove();
+                    addMessage(`Desculpe, ocorreu um erro: ${error.message}`, 'bot');
+                }
+            });
+
+            function addMessage(text, type) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', type);
+                // Usamos innerHTML para renderizar quebras de linha (<br>) que o bot possa enviar
+                messageElement.innerHTML = text.replace(/\n/g, '<br>');
+                chatMessages.appendChild(messageElement);
+                // Scroll para o final
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                return messageElement;
+            }
+        });
+    </script>
+
+</body>
+</html>

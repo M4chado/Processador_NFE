@@ -258,4 +258,33 @@ pre {
     font-size: 0.9rem;
     font-weight: 500;
     white-space: nowrap;
+
+ 
+.btn-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    width: 100%;
+    /* Cor de fundo cinza escuro */
+    background-color: var(--border-color); 
+    /* Cor do texto clara */
+    color: var(--text-color); 
+    /* Estilo da fonte igual ao .btn-submit */
+    font-size: 1.1rem; 
+    font-weight: 600; 
+    border: none;
+    border-radius: 8px;
+    /* Padding igual ao .btn-submit */
+    padding: 15px; 
+    cursor: pointer;
+    margin-top: 15px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.btn-secondary:hover {
+    background-color: #444444; /* Cinza um pouco mais claro */
+    color: white;
+}
+
 }

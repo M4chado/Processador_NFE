@@ -36,10 +36,7 @@
                 
                 <label for="pdf_file" class="file-upload-label">
                     <i id="upload-icon" class="fa-solid fa-upload"></i>
-                    
-                    <i id="document-icon" class="fa-solid fa-file-pdf" 
-                    style="display: none; font-size: 4em; color: #d9534f;"></i>
-                    
+                    <i id="document-icon" class="fa-solid fa-file-pdf" style="display: none; font-size: 4em; color: #d9534f;"></i>
                     <span id="upload-text">Selecione o arquivo PDF da nota fiscal</span>
                 </label>
                 
@@ -51,12 +48,17 @@
                     Extrair Dados
                 </button>
             </form>
+
+            <a href="/chat" class="btn-secondary">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                Acessar o Chat com Banco de Dados
+            </a>
         </div>
 
-        </div>
+    </div>
 
     <script>
-        // Script para mostrar o nome do arquivo selecionado
+        // Script (sem alterações)
         document.addEventListener('DOMContentLoaded', () => {
             const pdfFileInput = document.getElementById('pdf_file');
             const fileNameDisplay = document.getElementById('file-name-display');

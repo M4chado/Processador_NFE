@@ -5,7 +5,7 @@ import fitz
 import json
 from flask import (
     Flask, render_template, request,
-    redirect, url_for, flash, session
+    redirect, url_for, flash, session, jsonify
 )
 # Importações do Gemini foram movidas para o agente
 from datetime import datetime
@@ -14,6 +14,7 @@ from dateutil.relativedelta import relativedelta # Para manipulação de datas
 # --- Importação do novo agente ---
 from agentes import agente1
 from agentes import agente2
+from agentes import agente3
 
 # Inicializa a aplicação Flask
 app = Flask(__name__)
@@ -224,6 +225,42 @@ def salvar_dados():
 
     # Após salvar (ou falhar), volta para a página inicial de upload
     return redirect(url_for('index'))
+
+# --- NOVAS ROTAS PARA O AGENTE 3 (CHAT) ---
+
+@app.route('/chat')
+def chat_page():
+    """Renderiza a nova página de chat."""
+    return render_template('chat.html')
+
+@app.route('/ask', methods=['POST'])
+def ask_agent():
+    """
+    Endpoint da API para processar a pergunta do usuário.
+    Recebe um JSON, chama o Agente 3, e retorna um JSON.
+    """
+    try:
+        data = request.get_json()
+        question = data.get('question')
+
+        if not question:
+            return jsonify({"error": "Nenhuma pergunta fornecida."}), 400
+
+        # Chama o Agente 3 para fazer a mágica do Text-to-SQL
+        # Precisamos do supabase_client que foi inicializado no começo do app.
+        answer = agente3.run_text_to_sql(supabase_client, question)
+        
+        return jsonify({"answer": answer})
+
+    except Exception as e:
+        print(f"Erro na rota /ask: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# --- FIM DAS NOVAS ROTAS ---
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
 
 if __name__ == '__main__':
     app.run(debug=True)
