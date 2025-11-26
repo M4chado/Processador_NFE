@@ -6,7 +6,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 3. Copiando e Instalando Dependências:
-# Copiamos primeiro o requirements.txt para aproveitar o cache do Docker.
+# Copiamos primeeiro o requirements.txt para aproveitar o cache do Docker.
 # Se este arquivo não mudar, o Docker não reinstala tudo de novo.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
