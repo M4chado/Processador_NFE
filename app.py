@@ -1,128 +1,109 @@
-# app.py
-
 import os
 import fitz
 import json
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from flask import (
     Flask, render_template, request,
     redirect, url_for, flash, session, jsonify
 )
-# Importações do Gemini foram movidas para o agente
-from datetime import datetime
-from dateutil.relativedelta import relativedelta # Para manipulação de datas
+from supabase import create_client
+from dotenv import load_dotenv
+import google.generativeai as genai
 
-# --- Importação do novo agente ---
-from agentes import agente1
-from agentes import agente2
-from agentes import agente3
+from agentes import agente1, agente2, agente3
 
-# Inicializa a aplicação Flask
 app = Flask(__name__)
-
 app.config['SECRET_KEY'] = os.urandom(24)
 
-# --- INÍCIO: MOTOR DE REGRAS DE CLASSIFICAÇÃO ---
-# (Seu código de regras permanece inalterado)
+load_dotenv()
+
+def get_supabase():
+    """
+    Recupera o cliente Supabase usando as chaves da sessão (prioridade) ou do .env.
+    """
+    url = session.get('SUPABASE_URL') or os.getenv('SUPABASE_URL')
+    key = session.get('SUPABASE_KEY') or os.getenv('SUPABASE_KEY')
+    
+    if not url or not key:
+        return None
+    try:
+        return create_client(url, key)
+    except Exception as e:
+        print(f"Erro ao conectar Supabase: {e}")
+        return None
+
+def configure_genai_session():
+    """Configura a API do Gemini com a chave da sessão ou .env"""
+    api_key = session.get('GEMINI_API_KEY') or os.getenv('GEMINI_API_KEY')
+    if api_key:
+        genai.configure(api_key=api_key)
+        return True
+    return False
+
+@app.before_request
+def check_setup():
+    """
+    Middleware: Verifica se as chaves existem antes de cada requisição.
+    Redireciona para /setup se não estiver configurado.
+    """
+
+    allowed_routes = ['setup', 'static', 'logout']
+    if request.endpoint in allowed_routes:
+        return
+
+    supabase = get_supabase()
+    has_gemini = session.get('GEMINI_API_KEY') or os.getenv('GEMINI_API_KEY')
+
+    if not supabase or not has_gemini:
+        return redirect(url_for('setup'))
+    
+    configure_genai_session()
+
+
 REGRAS_DE_CLASSIFICACAO = {
-    "INSUMOS AGRÍCOLAS": [
-        "semente", "fertilizante", "defensivo", "agrícola", "corretivo", 
-        "herbicida", "fungicida", "inseticida", "adubo", "fert"
-    ],
-    "MANUTENÇÃO E OPERAÇÃO": [
-        "combustível", "diesel", "etanol", "gasolina", "lubrificante", "oleo", "graxa",
-        "peça", "parafuso", "rolamento", "componente", "mecanico", "mecânica",
-        "manutenção", "conserto", "reparo", "serviço mecânico",
-        "pneu", "filtro", "correia", "bateria",
-        "ferramenta", "utensílio", "equipamento de proteção"
-    ],
-    "RECURSOS HUMANOS": [
-        "mão de obra", "temporária", "salário", "encargo", "folha de pagamento", "adiantamento"
-    ],
-    "SERVIÇOS OPERACIONAIS": [
-        "frete", "transporte", "logística",
-        "colheita", "terceirizada",
-        "secagem", "armazenagem", "silo",
-        "pulverização", "aplicação"
-    ],
-    "INFRAESTRUTURA E UTILIDADES": [
-        "energia", "eletrica", "conta de luz",
-        "arrendamento", "aluguel de terra",
-        "construção", "reforma", "obra",
-        "material de construção", "cimento", "areia", "brita", "hidráulico", "elétrico"
-    ],
-    "ADMINISTRATIVAS": [
-        "honorário", "contábil", "advocatício", "agronômico", "consultoria",
-        "despesa bancária", "tarifa", "juro", "financeira"
-    ],
-    "SEGUROS E PROTEÇÃO": [
-        "seguro agrícola", "seguro de ativo", "seguro de máquina", "seguro de veículo", "seguro prestamista", "apólice"
-    ],
-    "IMPOSTOS E TAXAS": [
-        "itr", "iptu", "ipva", "incra", "ccir", "imposto", "taxa", "tributo"
-    ],
-    "INVESTIMENTOS": [
-        "aquisição de máquina", "aquisição de implemento", "compra de máquina", "trator", "colheitadeira",
-        "aquisição de veículo", "compra de veículo", "caminhonete",
-        "aquisição de imóvel", "compra de terra", "compra de fazenda",
-        "infraestrutura rural", "investimento"
-    ]
+    "INSUMOS AGRÍCOLAS": ["semente", "fertilizante", "defensivo", "agrícola", "corretivo", "herbicida", "fungicida", "inseticida", "adubo", "fert"],
+    "MANUTENÇÃO E OPERAÇÃO": ["combustível", "diesel", "etanol", "gasolina", "lubrificante", "oleo", "graxa", "peça", "parafuso", "rolamento", "componente", "mecanico", "mecânica", "manutenção", "conserto", "reparo", "serviço mecânico", "pneu", "filtro", "correia", "bateria", "ferramenta", "utensílio", "equipamento de proteção", "tubo", "cano", "fixacoes", "din", "kit"],
+    "RECURSOS HUMANOS": ["mão de obra", "temporária", "salário", "encargo", "folha de pagamento", "adiantamento"],
+    "SERVIÇOS OPERACIONAIS": ["frete", "transporte", "logística", "colheita", "terceirizada", "secagem", "armazenagem", "silo", "pulverização", "aplicação"],
+    "INFRAESTRUTURA E UTILIDADES": ["energia", "eletrica", "conta de luz", "arrendamento", "aluguel de terra", "construção", "reforma", "obra", "material de construção", "cimento", "areia", "brita", "hidráulico", "elétrico"],
+    "ADMINISTRATIVAS": ["honorário", "contábil", "advocatício", "agronômico", "consultoria", "despesa bancária", "tarifa", "juro", "financeira"],
+    "SEGUROS E PROTEÇÃO": ["seguro agrícola", "seguro de ativo", "seguro de máquina", "seguro de veículo", "seguro prestamista", "apólice"],
+    "IMPOSTOS E TAXAS": ["itr", "iptu", "ipva", "incra", "ccir", "imposto", "taxa", "tributo"],
+    "INVESTIMENTOS": ["aquisição de máquina", "aquisição de implemento", "compra de máquina", "trator", "colheitadeira", "aquisição de veículo", "compra de veículo", "caminhonete", "aquisição de imóvel", "compra de terra", "compra de fazenda", "infraestrutura rural", "investimento"]
 }
 
 def classificar_nota_fiscal(dados_da_nota):
-    """
-    Analisa os produtos da nota e atribui categorias de despesa com base nas regras.
-    Retorna uma lista de categorias únicas encontradas.
-    """
     categorias_encontradas = set()
-    
     if not dados_da_nota or 'produtos' not in dados_da_nota or not isinstance(dados_da_nota['produtos'], list):
         return []
-
     for produto in dados_da_nota['produtos']:
         if 'descricao' in produto and produto['descricao']:
             descricao_produto = produto['descricao'].lower()
-            
             for categoria, palavras_chave in REGRAS_DE_CLASSIFICACAO.items():
                 if any(palavra in descricao_produto for palavra in palavras_chave):
                     categorias_encontradas.add(categoria)
-                    
     return list(categorias_encontradas)
 
 def gerar_parcela_padrao(dados_json):
-    """Verifica se há parcelas; se não houver, cria uma parcela única com vencimento em 1 mês."""
     if not dados_json.get('parcelas'):
         data_emissao_str = dados_json.get('data_emissao')
         valor_total = dados_json.get('valor_total')
-
         if data_emissao_str and valor_total is not None:
             try:
                 data_emissao = datetime.strptime(data_emissao_str, "%d/%m/%Y")
                 data_vencimento = data_emissao + relativedelta(months=1)
                 data_vencimento_str = data_vencimento.strftime("%d/%m/%Y")
-
                 dados_json['parcelas'] = [{
                     "numero_parcela": 1,
                     "data_vencimento": data_vencimento_str,
                     "valor_parcela": float(valor_total)
                 }]
-                print("INFO: Nenhuma parcela encontrada na extração. Gerando parcela padrão.")
-            except (ValueError, TypeError) as e:
-                print(f"AVISO: Não foi possível gerar parcela padrão. Dados de origem inválidos. Erro: {e}")
-    
+            except (ValueError, TypeError):
+                pass
     return dados_json
 
-# --- Configuração do Agente Gemini ---
-# Agora chamamos a função de configuração do nosso módulo de agente
-try:
-    agente1.configurar_agente()
-    supabase_client = agente2.configurar_agente_db()
-except Exception as e:
-    # Se a configuração falhar (ex: sem API key), a aplicação não deve iniciar.
-    print(f"Falha crítica ao iniciar o agente de IA. A aplicação será encerrada. Erro: {e}")
-    exit()
-
 def extrair_texto_de_pdf(pdf_file_stream):
-    """Extrai o texto de um stream de arquivo PDF."""
     try:
         documento = fitz.open(stream=pdf_file_stream.read(), filetype="pdf")
         texto_completo = ""
@@ -133,59 +114,66 @@ def extrair_texto_de_pdf(pdf_file_stream):
         print(f"Erro ao ler o PDF: {e}")
         return None
 
-# A função extrair_dados_com_llm() foi movida para agentes/agente1.py
+@app.route('/setup', methods=['GET', 'POST'])
+def setup():
+    if request.method == 'POST':
+        session['SUPABASE_URL'] = request.form.get('supabase_url')
+        session['SUPABASE_KEY'] = request.form.get('supabase_key')
+        session['GEMINI_API_KEY'] = request.form.get('gemini_key')
+        
+        if get_supabase() and configure_genai_session():
+            flash('Sistema configurado com sucesso!', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Erro ao conectar. Verifique as chaves.', 'error')
+            
+    return render_template('setup.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Você saiu do sistema.', 'info')
+    return redirect(url_for('setup'))
 
 @app.route('/')
 def index():
-    """Renderiza a página inicial."""
     return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    """Recebe o PDF, processa e retorna a página com os resultados."""
     if 'pdf_file' not in request.files:
         flash("Nenhum arquivo enviado.", "error")
         return redirect(url_for('index'))
     
     file = request.files['pdf_file']
-    
     if file.filename == '' or not file.filename.lower().endswith('.pdf'):
         flash("Por favor, selecione um arquivo PDF.", "error")
         return redirect(url_for('index'))
 
-    # 1. Extração do texto
     texto_pdf = extrair_texto_de_pdf(file)
     if not texto_pdf:
         flash("Erro: Não foi possível ler o texto do PDF.", "error")
         return redirect(url_for('index'))
         
-    # 2. Extração dos dados com LLM (Agente 1)
     json_extraido_str = agente1.extrair_dados_com_llm(texto_pdf)
     if not json_extraido_str:
         flash("Erro: Falha na comunicação com a API do Gemini.", "error")
         return redirect(url_for('index'))
 
-    # 3. Limpeza e processamento do JSON
     clean_json_str = json_extraido_str.strip().replace("```json", "").replace("```", "").strip()
-
     dados_json = None
-    json_formatado_para_exibicao = f"O modelo não retornou um JSON válido. Resposta recebida:\n\n{clean_json_str}"
+    json_formatado_para_exibicao = f"O modelo não retornou um JSON válido. Resposta:\n{clean_json_str}"
     analise_db = None
 
     try:
         dados_json = json.loads(clean_json_str)
-        
-        # 4. Gerar parcela padrão, se necessário
         dados_json = gerar_parcela_padrao(dados_json)
-
-        # 5. Classificar a despesa com base nos dados
         categorias_da_despesa = classificar_nota_fiscal(dados_json)
         dados_json['classificacao_despesa'] = categorias_da_despesa
 
-        # 6. VERIFICAR DADOS NO BANCO (Agente 2 - Verificação)
+        supabase_client = get_supabase()
         analise_db = agente2.verificar_dados(supabase_client, dados_json)
         
-        # 7. Gerar o JSON formatado para exibição, agora com todas as alterações
         json_formatado_para_exibicao = json.dumps(dados_json, indent=4, ensure_ascii=False)
 
     except json.JSONDecodeError:
@@ -194,7 +182,6 @@ def upload_file():
         flash(f"Ocorreu um erro inesperado: {e}", "error")
         return redirect(url_for('index'))
 
-    # 8. Renderiza a PÁGINA DE RESULTADO com os dados
     return render_template('resultado.html', 
                            resultado_json=json_formatado_para_exibicao, 
                            dados_formatados=dados_json,
@@ -202,65 +189,140 @@ def upload_file():
 
 @app.route('/salvar', methods=['POST'])
 def salvar_dados():
-    """
-    Recebe os dados extraídos (via formulário oculto) e 
-    chama o Agente 2 para salvar no banco de dados.
-    """
     try:
         dados_json_str = request.form.get('dados_json_para_salvar')
-        
         if not dados_json_str:
             flash("Erro: Nenhum dado recebido para salvar.", "error")
             return redirect(url_for('index'))
             
         dados_json = json.loads(dados_json_str)
-
-        # Chama o Agente 2 para executar a função de salvamento
-        mensagem_sucesso = agente2.salvar_movimento(supabase_client, dados_json)
         
-        flash(mensagem_sucesso, "success") # Mostra "Registro lançado com sucesso."
+        supabase_client = get_supabase()
+        
+        mensagem_sucesso = agente2.salvar_movimento(supabase_client, dados_json)
+        flash(mensagem_sucesso, "success")
 
     except Exception as e:
         flash(f"Erro ao salvar: {e}", "error")
 
-    # Após salvar (ou falhar), volta para a página inicial de upload
     return redirect(url_for('index'))
-
-# --- NOVAS ROTAS PARA O AGENTE 3 (CHAT) ---
 
 @app.route('/chat')
 def chat_page():
-    """Renderiza a nova página de chat."""
     return render_template('chat.html')
 
 @app.route('/ask', methods=['POST'])
 def ask_agent():
-    """
-    Endpoint da API para processar a pergunta do usuário.
-    Recebe um JSON, chama o Agente 3, e retorna um JSON.
-    """
     try:
         data = request.get_json()
         question = data.get('question')
-
         if not question:
             return jsonify({"error": "Nenhuma pergunta fornecida."}), 400
 
-        # Chama o Agente 3 para fazer a mágica do Text-to-SQL
-        # Precisamos do supabase_client que foi inicializado no começo do app.
+        supabase_client = get_supabase()
         answer = agente3.run_text_to_sql(supabase_client, question)
-        
         return jsonify({"answer": answer})
 
     except Exception as e:
-        print(f"Erro na rota /ask: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- FIM DAS NOVAS ROTAS ---
+@app.route('/pessoas')
+def view_pessoas():
+    return render_template('pessoas.html')
+
+@app.route('/api/pessoas', methods=['GET', 'POST', 'PUT'])
+def api_pessoas():
+    supabase = get_supabase()
+    
+    if request.method == 'GET':
+        query = request.args.get('q', '').lower()
+        tipo_filtro = request.args.get('tipo', '') 
+        
+        db_query = supabase.table('pessoas').select('*').eq('status', 'ATIVO')
+        
+        if tipo_filtro:
+            db_query = db_query.eq('tipo', tipo_filtro)
+        if query:
+            db_query = db_query.ilike('razaosocial', f'%{query}%')
+            
+        result = db_query.order('razaosocial').execute()
+        return jsonify(result.data)
+
+    if request.method == 'POST':
+        data = request.json
+        data['status'] = 'ATIVO' 
+        try:
+            res = supabase.table('pessoas').insert(data).execute()
+            return jsonify(res.data), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    if request.method == 'PUT':
+        data = request.json
+        p_id = data.get('idPessoas')
+        if not p_id:
+            return jsonify({'error': 'ID necessário'}), 400
+        del data['idPessoas']
+        
+        try:
+            res = supabase.table('pessoas').update(data).eq('idPessoas', p_id).execute()
+            return jsonify(res.data), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+@app.route('/api/pessoas/delete/<int:id>', methods=['DELETE'])
+def delete_pessoa(id):
+    supabase = get_supabase()
+    try:
+        res = supabase.table('pessoas').update({'status': 'INATIVO'}).eq('idPessoas', id).execute()
+        return jsonify({'message': 'Registro inativado'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/classificacao')
+def view_classificacao():
+    return render_template('classificacao.html')
+
+@app.route('/api/classificacao', methods=['GET', 'POST', 'PUT'])
+def api_classificacao():
+    supabase = get_supabase()
+    
+    if request.method == 'GET':
+        query = request.args.get('q', '').lower()
+        db_query = supabase.table('classificacao').select('*').eq('status', 'ATIVO')
+        if query:
+            db_query = db_query.ilike('descricao', f'%{query}%')
+        result = db_query.order('descricao').execute()
+        return jsonify(result.data)
+    
+    if request.method == 'POST':
+        data = request.json
+        data['status'] = 'ATIVO'
+        try:
+            res = supabase.table('classificacao').insert(data).execute()
+            return jsonify(res.data), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    if request.method == 'PUT':
+        data = request.json
+        c_id = data.get('idClassificacao')
+        del data['idClassificacao']
+        try:
+            res = supabase.table('classificacao').update(data).eq('idClassificacao', c_id).execute()
+            return jsonify(res.data), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+@app.route('/api/classificacao/delete/<int:id>', methods=['DELETE'])
+def delete_classificacao(id):
+    supabase = get_supabase()
+    try:
+        supabase.table('classificacao').update({'status': 'INATIVO'}).eq('idClassificacao', id).execute()
+        return jsonify({'message': 'Registro inativado'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')

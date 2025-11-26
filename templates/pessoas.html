@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Gerenciar Pessoas</h2>
+    <button class="btn btn-success" onclick="openModal()">+ Novo Registro</button>
+</div>
+
+<div class="card p-3 mb-4">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <input type="text" id="searchInput" class="form-control" placeholder="Buscar por Razão Social...">
+        </div>
+        <div class="col-md-3">
+            <select id="typeFilter" class="form-select">
+                <option value="">Todos os Tipos</option>
+                <option value="CLIENTE-FORNECEDOR">Fornecedor/Cliente</option>
+                <option value="FATURADO">Faturado</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100" onclick="loadData()">
+                <i class="fa-solid fa-search"></i> Buscar
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body table-responsive">
+        <table class="table table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Tipo</th>
+                    <th>Documento</th>
+                    <th>Razão Social</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="6" class="text-center text-muted">Utilize a busca para carregar os dados.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="dataModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Novo Registro</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="dataForm">
+                    <input type="hidden" id="editId">
+                    <div class="mb-3">
+                        <label>Tipo</label>
+                        <select id="inputTipo" class="form-select" required>
+                            <option value="CLIENTE-FORNECEDOR">CLIENTE-FORNECEDOR</option>
+                            <option value="FATURADO">FATURADO</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Documento (CNPJ/CPF)</label>
+                        <input type="text" id="inputDoc" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Razão Social</label>
+                        <input type="text" id="inputRazao" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Nome Fantasia</label>
+                        <input type="text" id="inputFantasia" class="form-control">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveData()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const API_URL = '/api/pessoas';
+    const modal = new bootstrap.Modal(document.getElementById('dataModal'));
+
+    // CARREGAR DADOS (READ)
+    async function loadData() {
+        const q = document.getElementById('searchInput').value;
+        const type = document.getElementById('typeFilter').value;
+        const tbody = document.getElementById('tableBody');
+        
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">Carregando...</td></tr>';
+
+        try {
+            const res = await fetch(`${API_URL}?q=${q}&tipo=${type}`);
+            const data = await res.json();
+            
+            tbody.innerHTML = '';
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">Nenhum registro encontrado.</td></tr>';
+                return;
+            }
+
+            data.forEach(item => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${item.idPessoas}</td>
+                        <td><span class="badge bg-info">${item.tipo}</span></td>
+                        <td>${item.documento}</td>
+                        <td>${item.razaosocial}</td>
+                        <td><span class="badge bg-success">${item.status}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" onclick='editItem(${JSON.stringify(item)})'><i class="fa-solid fa-edit"></i></button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteItem(${item.idPessoas})"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (e) {
+            alert('Erro ao carregar dados');
+        }
+    }
+
+    // ABRIR MODAL
+    function openModal() {
+        document.getElementById('dataForm').reset();
+        document.getElementById('editId').value = '';
+        document.getElementById('modalTitle').innerText = 'Novo Registro';
+        modal.show();
+    }
+
+    // PREENCHER MODAL PARA EDIÇÃO
+    function editItem(item) {
+        document.getElementById('editId').value = item.idPessoas;
+        document.getElementById('inputTipo').value = item.tipo;
+        document.getElementById('inputDoc').value = item.documento;
+        document.getElementById('inputRazao').value = item.razaosocial;
+        document.getElementById('inputFantasia').value = item.fantasia;
+        document.getElementById('modalTitle').innerText = 'Editar Registro';
+        modal.show();
+    }
+
+    // SALVAR (CREATE / UPDATE)
+    async function saveData() {
+        const id = document.getElementById('editId').value;
+        const payload = {
+            tipo: document.getElementById('inputTipo').value,
+            documento: document.getElementById('inputDoc').value,
+            razaosocial: document.getElementById('inputRazao').value,
+            fantasia: document.getElementById('inputFantasia').value
+        };
+
+        const method = id ? 'PUT' : 'POST';
+        if (id) payload.idPessoas = id;
+
+        try {
+            const res = await fetch(API_URL, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            
+            if(res.ok) {
+                modal.hide();
+                loadData();
+            } else {
+                alert('Erro ao salvar');
+            }
+        } catch (e) {
+            alert('Erro na requisição');
+        }
+    }
+
+    async function deleteItem(id) {
+        if(!confirm('Deseja realmente excluir este registro?')) return;
+        
+        try {
+            const res = await fetch(`${API_URL}/delete/${id}`, { method: 'DELETE' });
+            if(res.ok) loadData();
+        } catch (e) {
+            alert('Erro ao excluir');
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Gerenciar Classificações</h2>
+    <button class="btn btn-success" onclick="openModal()">+ Nova Classificação</button>
+</div>
+
+<div class="card p-3 mb-4">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <input type="text" id="searchInput" class="form-control" placeholder="Buscar por Descrição (ex: Combustível)...">
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100" onclick="loadData()">
+                <i class="fa-solid fa-search"></i> Buscar
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body table-responsive">
+        <table class="table table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Tipo</th>
+                    <th>Descrição</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="5" class="text-center text-muted">Utilize a busca para carregar os dados.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="dataModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Nova Classificação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="dataForm">
+                    <input type="hidden" id="editId">
+                    <div class="mb-3">
+                        <label>Tipo</label>
+                        <select id="inputTipo" class="form-select" required>
+                            <option value="DESPESA">DESPESA</option>
+                            <option value="RECEITA">RECEITA</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Descrição</label>
+                        <input type="text" id="inputDescricao" class="form-control" required placeholder="Ex: Manutenção, Venda de Milho...">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveData()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const API_URL = '/api/classificacao';
+    const modal = new bootstrap.Modal(document.getElementById('dataModal'));
+
+    // CARREGAR DADOS (READ)
+    async function loadData() {
+        const q = document.getElementById('searchInput').value;
+        const tbody = document.getElementById('tableBody');
+        
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">Carregando...</td></tr>';
+
+        try {
+            const res = await fetch(`${API_URL}?q=${q}`);
+            const data = await res.json();
+            
+            tbody.innerHTML = '';
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Nenhum registro encontrado.</td></tr>';
+                return;
+            }
+
+            data.forEach(item => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${item.idClassificacao}</td>
+                        <td><span class="badge ${item.tipo === 'RECEITA' ? 'bg-success' : 'bg-danger'}">${item.tipo}</span></td>
+                        <td>${item.descricao}</td>
+                        <td><span class="badge bg-secondary">${item.status}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" onclick='editItem(${JSON.stringify(item)})'><i class="fa-solid fa-edit"></i></button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteItem(${item.idClassificacao})"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (e) {
+            console.error(e);
+            alert('Erro ao carregar dados');
+        }
+    }
+
+    // ABRIR MODAL
+    function openModal() {
+        document.getElementById('dataForm').reset();
+        document.getElementById('editId').value = '';
+        document.getElementById('modalTitle').innerText = 'Nova Classificação';
+        modal.show();
+    }
+
+    // PREENCHER MODAL PARA EDIÇÃO
+    function editItem(item) {
+        document.getElementById('editId').value = item.idClassificacao;
+        document.getElementById('inputTipo').value = item.tipo;
+        document.getElementById('inputDescricao').value = item.descricao;
+        document.getElementById('modalTitle').innerText = 'Editar Classificação';
+        modal.show();
+    }
+
+    // SALVAR (CREATE / UPDATE)
+    async function saveData() {
+        const id = document.getElementById('editId').value;
+        const payload = {
+            tipo: document.getElementById('inputTipo').value,
+            descricao: document.getElementById('inputDescricao').value
+        };
+
+        const method = id ? 'PUT' : 'POST';
+        if (id) payload.idClassificacao = id;
+
+        try {
+            const res = await fetch(API_URL, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            
+            if(res.ok) {
+                modal.hide();
+                loadData(); 
+            } else {
+                alert('Erro ao salvar');
+            }
+        } catch (e) {
+            alert('Erro na requisição');
+        }
+    }
+
+    // EXCLUIR (LÓGICO)
+    async function deleteItem(id) {
+        if(!confirm('Deseja realmente inativar este registro?')) return;
+        
+        try {
+            const res = await fetch(`${API_URL}/delete/${id}`, { method: 'DELETE' });
+            if(res.ok) loadData();
+        } catch (e) {
+            alert('Erro ao excluir');
+        }
+    }
+</script>
+{% endblock %}

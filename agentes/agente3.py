@@ -82,8 +82,6 @@ def run_text_to_sql(supabase_client: Client, user_question: str):
     try:
         schema = get_database_schema()
         
-        # --- ETAPA 1: Gerar a Consulta SQL ---
-        
         prompt_sql_generator = f"""
         Você é um especialista em PostgreSQL. Sua tarefa é gerar uma consulta SQL para responder a uma pergunta do usuário,
         com base no seguinte esquema de banco de dados:
@@ -112,22 +110,17 @@ def run_text_to_sql(supabase_client: Client, user_question: str):
         Consulta SQL:
         """
         
-        # Usando o modelo que sabemos que funciona para sua API
         model = genai.GenerativeModel("gemini-2.5-flash") 
         response_sql = model.generate_content(prompt_sql_generator)
-        
-        # --- Lógica robusta para limpar a resposta do LLM e extrair o SQL. ---
         
         raw_sql_response = response_sql.text.strip()
         sql_query = ""
 
-        # Tentativa 1: Encontrar SQL dentro de um bloco de markdown ```sql
         sql_match = re.search(r"```sql\s*(.*?)\s*```", raw_sql_response, re.DOTALL | re.IGNORECASE)
         
         if sql_match:
             sql_query = sql_match.group(1).strip()
         else:
-            # Tentativa 2: Se não houver markdown, encontrar o primeiro "SELECT"
             select_index = raw_sql_response.upper().find("SELECT")
             if select_index != -1:
                 sql_query = raw_sql_response[select_index:].strip()
@@ -137,14 +130,11 @@ def run_text_to_sql(supabase_client: Client, user_question: str):
         sql_query = sql_query.replace("```", "").strip().rstrip(';')
         
         print(f"DEBUG (Agente 3): SQL Limpo e Gerado: {sql_query}")
-
-        # --- ETAPA 2: Verificar e Executar a Consulta ---
         
         if not is_query_safe(sql_query):
             print(f"DEBUG (Agente 3): Consulta bloqueada por segurança: {sql_query}")
             return "Desculpe, sua pergunta resultou em uma consulta que não é permitida por motivos de segurança."
 
-        # Chama a função RPC 'run_safe_query' que criamos no Supabase
         data_result = supabase_client.rpc(
             "run_safe_query", 
             {"query_text": sql_query}
@@ -153,8 +143,6 @@ def run_text_to_sql(supabase_client: Client, user_question: str):
         raw_data = data_result.data
         
         print(f"DEBUG (Agente 3): Dados recebidos do DB: {raw_data}")
-
-        # --- ETAPA 3: Gerar Resposta Amigável ---
         
         prompt_answer_generator = f"""
         Você é um assistente financeiro prestativo.
