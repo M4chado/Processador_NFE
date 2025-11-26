@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 5. Expondo a Porta:
-# Informamos ao Docker que nossa aplicação Flask rodará na porta 5000.
+# Informamos ao Docker .que nossa aplicação Flask rodará na porta 5000.
 EXPOSE 5000
 
 # 6. Comando de Execução:
